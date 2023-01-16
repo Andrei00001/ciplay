@@ -15,7 +15,7 @@ sys.path.append(os.path.join(sys.path[0], 'app'))
 # access to the values within the .ini file in use.
 
 from app.auth.models import metadata as auth_metadata
-from app.url_operations.models import metadata as url_metadata
+from app.statistics.models import metadata as statistics_metadata
 
 config = context.config
 section = config.config_ini_section
@@ -36,7 +36,7 @@ if config.config_file_name is not None:
 # target_metadata = mymodel.Base.metadata
 target_metadata = [
     auth_metadata,
-    url_metadata,
+    statistics_metadata,
 ]
 
 
