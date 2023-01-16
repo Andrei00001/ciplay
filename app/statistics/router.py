@@ -5,7 +5,7 @@ from decimal import Decimal
 from fastapi import APIRouter
 from sqlalchemy import insert, select, delete
 
-from app.connection_db import async_session
+from app.connection_db import Session
 from app.statistics.models import statistic
 from app.statistics.schemas import Statistics, ResponseSet, ResponseGet, StatisticsGet, StatusCode
 
@@ -17,7 +17,7 @@ router = APIRouter(
 
 @router.post("/set", response_model=ResponseSet)
 async def set_statistic(statistics: Statistics):
-    async with async_session() as session:
+    async with Session() as session:
         stmt = insert(statistic).values(
             date=statistics.date,
             views=statistics.views,
@@ -33,7 +33,7 @@ async def set_statistic(statistics: Statistics):
 async def get_statistic(from_: date, to: date):
     query = select(statistic).filter(statistic.c.date <= from_).filter(statistic.c.date >= to).order_by(
         statistic.c.date.desc())
-    async with async_session() as session:
+    async with Session() as session:
         objs = await session.execute(query)
         objs = objs.all()
 
@@ -56,7 +56,7 @@ async def get_statistic(from_: date, to: date):
 
 @router.delete("/delete", response_model=StatusCode)
 async def delete_statistic():
-    async with async_session() as session:
+    async with Session() as session:
         await session.execute(delete(statistic))
         await session.commit()
     return StatusCode(status=200)
