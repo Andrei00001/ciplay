@@ -2,7 +2,7 @@ from fastapi import FastAPI
 
 from app.auth.auth_config import auth_backend, fastapi_users
 from app.auth.schemas import UserRead, UserCreate
-from app.url_operations.router import router as router_url
+from app.statistics.router import router as router_url
 app = FastAPI()
 
 app.include_router(
