@@ -1,13 +1,16 @@
+import decimal
 from datetime import date
 from decimal import Decimal
-from pydantic import BaseModel, Field
+from typing import Any
+
+from pydantic import BaseModel, Field, validator
 
 
 class StatusCode(BaseModel):
     status: int
 
 
-class Statistics(BaseModel):
+class Statistic(BaseModel):
     date: date
     views: int = Field(ge=0, default=None)
     clicks: int = Field(ge=0, default=None)
@@ -18,13 +21,20 @@ class Statistics(BaseModel):
 
 
 class ResponseSet(StatusCode):
-    data: Statistics
+    data: Statistic
 
 
-class StatisticsGet(Statistics):
+class StatisticsGet(Statistic):
     cpc: Decimal
     cpm: Decimal
 
 
 class ResponseGet(BaseModel):
     statistics: list[StatisticsGet]
+
+    class Config:
+        orm_mode = True
+
+
+class ResponseError(BaseModel):
+    error: str

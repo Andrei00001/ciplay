@@ -1,13 +1,15 @@
 import decimal
 from datetime import date
 from decimal import Decimal
+from typing import Union
 
 from fastapi import APIRouter
-from sqlalchemy import insert, select, delete
+from sqlalchemy import select, delete
 
 from app.connection_db import Session
-from app.statistics.models import statistic
-from app.statistics.schemas import Statistics, ResponseSet, ResponseGet, StatisticsGet, StatusCode
+
+from app.models import Statistics
+from app.statistics.schemas import Statistic, ResponseSet, ResponseGet, StatisticsGet, StatusCode, ResponseError
 
 router = APIRouter(
     prefix='/static',
@@ -16,50 +18,22 @@ router = APIRouter(
 
 
 @router.post("/set", response_model=ResponseSet)
-async def set_statistic(statistics: Statistics):
+async def set_statistic(statistics: Statistic):
+    statistics.cost = statistics.cost.quantize(Decimal('1.00'), decimal.ROUND_DOWN)
+    cpc = set_cpc(cost=statistics.cost, clicks=statistics.clicks)
+    cpm = set_cpm(cost=statistics.cost, views=statistics.views)
+
     async with Session() as session:
-        stmt = insert(statistic).values(
+        session.add(Statistics(
             date=statistics.date,
             views=statistics.views,
             clicks=statistics.clicks,
-            cost=statistics.cost.quantize(Decimal('1.00'), decimal.ROUND_DOWN),
-        )
-        await session.execute(stmt)
+            cost=statistics.cost,
+            cpc=cpc,
+            cpm=cpm
+        ))
         await session.commit()
     return ResponseSet(status=200, data=statistics)
-
-
-@router.get("/get", response_model=ResponseGet)
-async def get_statistic(from_: date, to: date):
-    query = select(statistic).filter(statistic.c.date <= from_).filter(statistic.c.date >= to).order_by(
-        statistic.c.date.desc())
-    async with Session() as session:
-        objs = await session.execute(query)
-        objs = objs.all()
-
-    list_statistics = []
-    for obj in objs:
-        cpc = set_cpc(cost=obj[4], clicks=obj[3])
-        cpm = set_cpc(cost=obj[4], clicks=obj[2])
-        list_statistics.append(
-            StatisticsGet(
-                date=obj[1],
-                views=obj[2],
-                clicks=obj[3],
-                cost=obj[4],
-                cpc=cpc,
-                cpm=cpm
-            )
-        )
-    return ResponseGet(statistics=list_statistics)
-
-
-@router.delete("/delete", response_model=StatusCode)
-async def delete_statistic():
-    async with Session() as session:
-        await session.execute(delete(statistic))
-        await session.commit()
-    return StatusCode(status=200)
 
 
 def set_cpc(cost: Decimal, clicks: int) -> Decimal:
@@ -74,3 +48,37 @@ def set_cpm(cost: Decimal, views: int) -> Decimal:
     if cpm == 0:
         return cpm
     return Decimal(cpm).quantize(Decimal('1.00'), decimal.ROUND_DOWN)
+
+
+@router.get("/get", response_model=Union[ResponseGet, ResponseError])
+async def get_statistic(from_: date, to: date, order_field: str = '-date'):
+    try:
+        order_field = sort(order_field)
+    except AttributeError:
+        return ResponseError(error=f"I can not find such a concept for sorting {order_field}")
+
+    query = select(Statistics).filter(Statistics.date <= from_).filter(Statistics.date >= to).order_by(order_field)
+    async with Session() as session:
+        statistics = await session.execute(query)
+        statistics = statistics.scalars()
+        
+    return ResponseGet(statistics=[StatisticsGet.from_orm(statistic) for statistic in statistics])
+
+
+def sort(order: str) -> Statistics:
+    descending = False
+    if order[0] == '-':
+        order = order[1:]
+        descending = True
+
+    if descending:
+        return Statistics.__getattribute__(Statistics, order).desc()
+    return Statistics.__getattribute__(Statistics, order)
+
+
+@router.delete("/delete", response_model=StatusCode)
+async def delete_statistic():
+    async with Session() as session:
+        await session.execute(delete(Statistics))
+        await session.commit()
+    return StatusCode(status=200)
