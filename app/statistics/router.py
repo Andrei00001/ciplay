@@ -57,11 +57,14 @@ async def get_statistic(from_: date, to: date, order_field: str = '-date'):
     except AttributeError:
         return ResponseError(error=f"I can not find such a concept for sorting {order_field}")
 
+    if from_ <= to:
+        from_, to = to, from_
+
     query = select(Statistics).filter(Statistics.date <= from_).filter(Statistics.date >= to).order_by(order_field)
     async with Session() as session:
         statistics = await session.execute(query)
         statistics = statistics.scalars()
-        
+
     return ResponseGet(statistics=[StatisticsGet.from_orm(statistic) for statistic in statistics])
 
 
